@@ -1,8 +1,8 @@
 [
   {
-    "url": "https://github.com/dan-os/nyos-build-lts/releases/download/1.4-lts-84423ea-202409252249/vyos-1.4-lts-84423ea-202409252249-amd64.iso",
-    "version": "1.4-lts-84423ea-202409252249",
-    "timestamp": "2024-09-25T22:49:36Z",
-    "commit": "waiting"
+    "url": "https://github.com/dan-os/nyos-build-lts/releases/download/1.4-lts-84423ea-202409252321/nyos-1.4-lts-84423ea-202409252321-amd64.iso",
+    "version": "1.4-lts-84423ea-202409252321",
+    "timestamp": "2024-09-25T23:21:24Z",
+    "commit": "84423ea"
   }
 ]
