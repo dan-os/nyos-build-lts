@@ -1,6 +1,4 @@
----
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: NyOS sagitta LTS build
+name: NOTvyos build - sagitta LTS
 
 on:
   schedule:
@@ -9,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       BUILD_BY:
-        description: "Builder identifier (if empty vyosbuild@lab.dan.sm is used)"
+        description: "Builder identifier (default: nyos-build@lab.dan.sm)"
         default: ""
-      BUILD_VERSION:
-        description: "Version number (if empty 1.4-lts-$(git -C ./vyos-build rev-parse HEAD) is used)"
+      build_version:
+        description: "Version number (default: 1.4-lts-$(git -C ./vyos-build rev-parse --short HEAD)-ISO8601-TIMESTAMP)"
         default: ""
       SKIP_RELEASE_PUBLISHING:
         description: "Skip release publishing"
@@ -24,18 +22,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  BUILD_BY: nyos-build@lab.dan.sm
+  DEBIAN_MIRROR: http://deb.debian.org/debian/
+  VYOS_MIRROR: https://vyos.tnyzeq.icu/apt/sagitta
+
 jobs:
-  build-iso:
+  build_iso:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    env:
-      BUILD_BY: vyosbuild@lab.dan.sm
-      DEBIAN_MIRROR: http://deb.debian.org/debian/
-      VYOS_MIRROR: https://vyos.tnyzeq.icu/apt/sagitta
     container:
       image: vyos/vyos-build:sagitta
       options: --sysctl net.ipv6.conf.lo.disable_ipv6=0 --privileged
+    outputs:
+      UPDATED: ${{ steps.check_for_updates.outputs.UPDATED }}
+      BUILD_BY: ${{ steps.set_env_variables.outputs.BUILD_BY }}
+      LATEST_COMMIT: ${{ steps.set_env_variables.outputs.LATEST_COMMIT }}
+      build_version: ${{ steps.set_env_variables.outputs.build_version }}
+      TIMESTAMP: ${{ steps.set_env_variables.outputs.TIMESTAMP }}
+      PREVIOUS_SUCCESS_BUILD_TIMESTAMP: ${{ steps.set_env_variables.outputs.PREVIOUS_SUCCESS_BUILD_TIMESTAMP }}
+
     steps:
       ### Initialization ###
 
@@ -45,7 +52,7 @@ jobs:
         id: git_clone_vyos-build
         run: |
           git clone -b sagitta --single-branch https://github.com/vyos/vyos-build
-          echo "LATEST_COMMIT=$(git -C ./vyos-build rev-parse HEAD)" >> $GITHUB_ENV
+          echo "LATEST_COMMIT=$(git -C ./vyos-build rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "CURRENT_COMMIT=$(cat version.json | jq -r '.[0].commit')" >> $GITHUB_ENV
 
       - name: "Initialization: Check for updates to vyos-build"
@@ -53,6 +60,7 @@ jobs:
         run: |
           if [ "${{ env.LATEST_COMMIT }}" != "${{ env.CURRENT_COMMIT }}" ]; then
             echo "vyos-build updated: ${{ env.CURRENT_COMMIT }} -> ${{ env.LATEST_COMMIT }}";
+            echo "UPDATED=1" >> $GITHUB_OUTPUT
           else
             echo "No updates found. Exiting...";
             exit 0;
@@ -66,16 +74,19 @@ jobs:
       - name: "Initialization: set env variables"
         id: set_env_variables
         run: |
+          set -x
           if [ -n "${{ github.event.inputs.BUILD_BY }}" ]; then
             echo "BUILD_BY=${{ github.event.inputs.BUILD_BY }}" >> $GITHUB_ENV
           fi
-          if [ -z "${{ github.event.inputs.BUILD_VERSION }}" ]; then
-            echo "BUILD_VERSION=1.4-lts-${{ env.LATEST_COMMIT }}" >> $GITHUB_ENV
+          if [ -z "${{ github.event.inputs.build_version }}" ]; then
+            echo "build_version=1.4-lts-${{ env.LATEST_COMMIT }}-$(date -u +%Y%m%d%H%M)" >> $GITHUB_OUTPUT
           else
-            echo "BUILD_VERSION=${{ github.event.inputs.BUILD_VERSION }}" >> $GITHUB_ENV
+            echo "build_version=${{ github.event.inputs.build_version }}" >> $GITHUB_OUTPUT
           fi
-          echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
-          echo "PREVIOUS_SUCCESS_BUILD_TIMESTAMP=$(cat version.json | jq -r '.[0].timestamp')" >> $GITHUB_ENV
+          echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+          echo "PREVIOUS_SUCCESS_BUILD_TIMESTAMP=$(cat version.json | jq -r '.[0].timestamp')" >> $GITHUB_OUTPUT
+          echo "BUILD_BY=$BUILD_BY" >> $GITHUB_OUTPUT
+          echo "LATEST_COMMIT=$LATEST_COMMIT" >> $GITHUB_OUTPUT
 
       ### Building ###
 
@@ -85,77 +96,125 @@ jobs:
           set -eux
           make clean
 
-      - name: "Building: create ISO image"
-        id: build_iso
-        working-directory: vyos-build
+      - name: "Building: Create ISO image"
+        id: build_generic_iso
         run: |
-          set -eux
-          ./build-vyos-image \
+          cd vyos-build
+
+          sudo --preserve-env ./build-vyos-image \
           --architecture amd64 \
           --build-by $BUILD_BY \
           --build-type release \
+          --custom-package vyos-1x-smoketest \
           --debian-mirror $DEBIAN_MIRROR \
-          --version $BUILD_VERSION \
+          --version ${{ steps.set_env_variables.outputs.build_version }} \
           --vyos-mirror $VYOS_MIRROR \
           --custom-apt-key /opt/apt.gpg.key \
           iso
 
-      - name: "Building: copy a generic ISO image"
-        id: copy_iso
-        run: |
-          cp ./vyos-build/build/live-image-amd64.hybrid.iso ./vyos-$BUILD_VERSION-amd64.iso
+          # move artifact one level up for minisign
+          mv build/live-image-amd64.hybrid.iso ../vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
 
-      - name: "Building: sign an ISO image with Minisign"
-        id: sign_iso_minisign
+      - name: "Building: Sign ISO image with Minisign"
+        shell: bash
         run: |
           echo "${{ secrets.minisign_private_key }}" > /tmp/minisign.key
-          shasum /tmp/minisign.key
-          echo ${{ secrets.minisign_password }} | $GITHUB_WORKSPACE/bin/minisign -s /tmp/minisign.key -Sm ./vyos-$BUILD_VERSION-amd64.iso
+          echo ${{ secrets.minisign_password }} | $GITHUB_WORKSPACE/bin/minisign -s /tmp/minisign.key -Sm vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
           echo "${{ secrets.minisign_public_key }}" > /tmp/minisign.pub
-          $GITHUB_WORKSPACE/bin/minisign -Vm ./vyos-$BUILD_VERSION-amd64.iso -x ./vyos-$BUILD_VERSION-amd64.iso.minisig -p /tmp/minisign.pub
+          $GITHUB_WORKSPACE/bin/minisign -Vm vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso -x vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso.minisig -p /tmp/minisign.pub
           rm /tmp/minisign.key /tmp/minisign.pub
 
-      ### Uploading artifacts ###
-
-      - name: "Uploading artifacts: ISO image to GitHub"
-        id: upload_iso_artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: vyos-${{ env.BUILD_VERSION }}-amd64.iso
-          path: ./vyos-${{ env.BUILD_VERSION }}-amd64.iso
+          name: vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64
+          path: vyos-${{ steps.set_env_variables.outputs.build_version }}-*
           retention-days: 30
           if-no-files-found: error
 
-      - name: "Uploading artifacts: ISO image's signature to GitHub"
-        id: upload_iso_minisign_artifact
-        uses: actions/upload-artifact@v4
+  publish:
+    needs:
+      - build_iso
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    if: ${{ success() && needs.build_iso.outputs.UPDATED && !inputs.SKIP_RELEASE_PUBLISHING }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone vyos-build source code
+        uses: actions/checkout@v4
         with:
-          name: vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
-          path: ./vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
-          retention-days: 30
-          if-no-files-found: error
+          repository: vyos/vyos-build
+          path: vyos-build
+      - name: Clone vyos-1x source code
+        uses: actions/checkout@v4
+        with:
+          repository: vyos/vyos-1x
+          path: vyos-1x
+      - id: commit_ids
+        shell: bash
+        run: |
+          cd vyos-build
+          echo "CHANGELOG_COMMIT_VYOS_BUILD=$(git log --since "${{ needs.build_iso.outputs.PREVIOUS_SUCCESS_BUILD_TIMESTAMP }}" --format="%H" --reverse | head -n1)" >> $GITHUB_OUTPUT
+          cd ../vyos-1x
+          echo "CHANGELOG_COMMIT_VYOS_1X=$(git log --since "${{ needs.build_iso.outputs.PREVIOUS_SUCCESS_BUILD_TIMESTAMP }}" --format="%H" --reverse | head -n1)" >> $GITHUB_OUTPUT
 
       ### Release publishing ###
 
+      - name: "Release publishing: generate changelog for vyos-1x"
+        id: generate_changelog_for_vyos-1x
+        uses: mikepenz/release-changelog-builder-action@v4.1.0
+        with:
+          owner: "vyos"
+          repo: "vyos-1x"
+          fetchReviewers: false
+          fromTag: ${{ steps.commit_ids.outputs.CHANGELOG_COMMIT_VYOS_1X }}
+          toTag: HEAD
+          configurationJson: |
+            {
+              "categories": [{"title": "", "labels": []}],
+              "template": "#{{CHANGELOG}}",
+              "pr_template": "- #{{TITLE}}\n   - PR: vyos/vyos-1x##{{NUMBER}}"
+            }
+
+      - name: "Release publishing: generate changelog for vyos-build"
+        id: generate_changelog_for_vyos-build
+        uses: mikepenz/release-changelog-builder-action@v4.1.0
+        with:
+          owner: "vyos"
+          repo: "vyos-build"
+          fetchReviewers: false
+          fromTag: ${{ steps.commit_ids.outputs.CHANGELOG_COMMIT_VYOS_BUILD }}
+          toTag: HEAD
+          configurationJson: |
+            {
+              "categories": [{"title": "", "labels": []}],
+              "template": "#{{CHANGELOG}}",
+              "pr_template": "- #{{TITLE}}\n   - PR: vyos/vyos-build##{{NUMBER}}"
+            }
+
+      - name: "Release publishing: generate CHANGELOG.md"
+        run: |
+          cat <<EOF > CHANGELOG.md
+          ## vyos-1x
+          ${{ steps.generate_changelog_for_vyos-1x.outputs.changelog }}
+          ## vyos-build
+          ${{ steps.generate_changelog_for_vyos-build.outputs.changelog }}
+          EOF
+          cat CHANGELOG.md
+
       - name: "Release publishing: create version.json"
-        id: create_version_json
         uses: jsdaniell/create-json@v1.2.3
         with:
           name: "version.json"
           json: |
             [
               {
-                "url": "https://github.com/dan-os/vyos-build-lts/releases/download/${{ env.BUILD_VERSION }}/vyos-${{ env.BUILD_VERSION }}-amd64.iso",
-                "version": "${{ env.BUILD_VERSION }}",
-                "timestamp": "${{ env.TIMESTAMP }}",
-                "commit": "${{ env.LATEST_COMMIT }}"
+                "url": "https://github.com/dan-os/nyos-build-lts/releases/download/${{ needs.build_iso.outputs.build_version }}/vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso",
+                "version": "${{ needs.build_iso.outputs.build_version }}",
+                "timestamp": "${{ needs.build_iso.outputs.TIMESTAMP }}",
+                "commit": "${{ needs.build_iso.outputs.LATEST_COMMIT }}"
               }
             ]
-
-      - name: "Release publishing: update Minisign public key"
-        id: update_minisign_public_key
-        run: |
-          echo "${{ secrets.minisign_public_key }}" > minisign.pub
 
       - name: "Release publishing: check if the repository was modified during runtime to prevent autocommit failure"
         id: check_if_the_repository_was_modified_during_runtime
@@ -164,19 +223,22 @@ jobs:
           git pull --autostash --rebase
 
       - name: "Release publishing: create autocommit and tag"
-        id: create_autocommit_and_tag
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          tagging_message: ${{ env.BUILD_VERSION }}
-          commit_message: ${{ env.BUILD_VERSION }}
+          tagging_message: ${{ needs.build_iso.outputs.build_version }}
+          commit_message: ${{ needs.build_iso.outputs.build_version }}
+          commit_author: "nyos-bot <${{ needs.build_iso.outputs.BUILD_BY }}>"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vyos-${{ needs.build_iso.outputs.build_version }}-amd64
 
       - name: "Release publishing: publish release"
-        id: publish_release
-        if: ${{ !inputs.SKIP_RELEASE_PUBLISHING }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.BUILD_VERSION }}
+          body_path: CHANGELOG.md
+          tag_name: ${{ needs.build_iso.outputs.build_version }}
           fail_on_unmatched_files: true
           files: |
-            ./vyos-${{ env.BUILD_VERSION }}-amd64.iso
-            ./vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
+            ./vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso
+            ./vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso.minisig
