@@ -68,11 +68,13 @@ jobs:
 
       - name: "Initialization: Download custom APT key"
         id: get_apt_key
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         run: |
           curl https://vyos.tnyzeq.icu/apt/apt.gpg.key -o /opt/apt.gpg.key
 
       - name: "Initialization: set env variables"
         id: set_env_variables
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         run: |
           set -x
           if [ -n "${{ github.event.inputs.BUILD_BY }}" ]; then
@@ -91,12 +93,14 @@ jobs:
       ### Building ###
 
       - name: "Building: make clean"
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         working-directory: vyos-build
         run: |
           set -eux
           make clean
 
       - name: "Building: Create ISO image"
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         id: build_generic_iso
         run: |
           cd vyos-build
@@ -116,6 +120,7 @@ jobs:
           mv build/live-image-amd64.hybrid.iso ../nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
 
       - name: "Building: Sign ISO image with minisign"
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         shell: bash
         run: |
           echo "${{ secrets.minisign_private_key }}" > /tmp/minisign.key
@@ -125,6 +130,7 @@ jobs:
           rm /tmp/minisign.key /tmp/minisign.pub
 
       - uses: actions/upload-artifact@v4
+        if: ${{ steps.check_for_updates.outputs.UPDATED == '1' }}
         with:
           name: nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64
           path: nyos-${{ steps.set_env_variables.outputs.build_version }}-*
@@ -137,7 +143,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    if: ${{ success() && needs.build_iso.outputs.UPDATED && !inputs.SKIP_RELEASE_PUBLISHING }}
+    if: ${{ success() && needs.build_iso.outputs.UPDATED == '1' && !inputs.SKIP_RELEASE_PUBLISHING }}
     steps:
       - uses: actions/checkout@v4
       - name: Clone vyos-build source code
