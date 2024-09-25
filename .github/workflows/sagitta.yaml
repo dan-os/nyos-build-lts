@@ -1,0 +1,182 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: VyOS sagitta LTS build
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+  workflow_dispatch:
+    inputs:
+      BUILD_BY:
+        description: "Builder identifier (if empty vyosbuild@lab.dan.sm is used)"
+        default: ""
+      BUILD_VERSION:
+        description: "Version number (if empty 1.4-lts-$(git -C ./vyos-build rev-parse HEAD) is used)"
+        default: ""
+      SKIP_RELEASE_PUBLISHING:
+        description: "Skip release publishing"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BUILD_BY: vyosbuild@lab.dan.sm
+      DEBIAN_MIRROR: http://deb.debian.org/debian/
+      VYOS_MIRROR: https://vyos.tnyzeq.icu/apt/sagitta
+    container:
+      image: vyos/vyos-build:sagitta
+      options: --privileged
+    steps:
+      ### Initialization ###
+
+      - uses: actions/checkout@v4
+
+      - name: "Initialization: git clone vyos-build"
+        id: git_clone_vyos-build
+        run: |
+          git clone -b sagitta --single-branch https://github.com/vyos/vyos-build
+          echo "LATEST_COMMIT=$(git -C ./vyos-build rev-parse HEAD)" >> $GITHUB_ENV
+          echo "CURRENT_COMMIT=$(cat version.json | jq -r '.[0].commit')" >> $GITHUB_ENV
+
+      - name: "Initialization: Check for updates to vyos-build"
+        id: check_for_updates
+        run: |
+          if [ "${{ env.LATEST_COMMIT }}" != "${{ env.CURRENT_COMMIT }}" ]; then
+            echo "vyos-build updated: ${{ env.CURRENT_COMMIT }} -> ${{ env.LATEST_COMMIT }}";
+          else
+            echo "No updates found. Exiting...";
+            exit 0;
+          fi
+
+      - name: "Initialization: Download custom APT key"
+        id: get_apt_key
+        run: |
+          curl https://vyos.tnyzeq.icu/apt/apt.gpg.key -o /opt/apt.gpg.key
+
+      - name: "Initialization: set env variables"
+        id: set_env_variables
+        run: |
+          if [ -n "${{ github.event.inputs.BUILD_BY }}" ]; then
+            echo "BUILD_BY=${{ github.event.inputs.BUILD_BY }}" >> $GITHUB_ENV
+          fi
+          if [ -z "${{ github.event.inputs.BUILD_VERSION }}" ]; then
+            echo "BUILD_VERSION=1.4-lts-${{ env.LATEST_COMMIT }}" >> $GITHUB_ENV
+          else
+            echo "BUILD_VERSION=${{ github.event.inputs.BUILD_VERSION }}" >> $GITHUB_ENV
+          fi
+          echo "TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+          echo "PREVIOUS_SUCCESS_BUILD_TIMESTAMP=$(cat version.json | jq -r '.[0].timestamp')" >> $GITHUB_ENV
+
+      ### Building ###
+
+      - name: "Building: make clean"
+        working-directory: vyos-build
+        run: |
+          set -eux
+          make clean
+
+      - name: "Building: create ISO image"
+        id: build_iso
+        working-directory: vyos-build
+        run: |
+          set -eux
+          ./build-vyos-image \
+          --architecture amd64 \
+          --build-by $BUILD_BY \
+          --build-type release \
+          --debian-mirror $DEBIAN_MIRROR \
+          --version $BUILD_VERSION \
+          --vyos-mirror $VYOS_MIRROR \
+          --custom-apt-key /opt/apt.gpg.key \
+          iso
+
+      - name: "Building: copy a generic ISO image"
+        id: copy_iso
+        run: |
+          cp ./vyos-build/build/live-image-amd64.hybrid.iso ./vyos-$BUILD_VERSION-amd64.iso
+
+      - name: "Building: sign an ISO image with Minisign"
+        id: sign_iso_minisign
+        run: |
+          echo "${{ secrets.minisign_private_key }}" > /tmp/minisign.key
+          shasum /tmp/minisign.key
+          echo ${{ secrets.minisign_password }} | $GITHUB_WORKSPACE/bin/minisign -s /tmp/minisign.key -Sm ./vyos-$BUILD_VERSION-amd64.iso
+          echo "${{ secrets.minisign_public_key }}" > /tmp/minisign.pub
+          $GITHUB_WORKSPACE/bin/minisign -Vm ./vyos-$BUILD_VERSION-amd64.iso -x ./vyos-$BUILD_VERSION-amd64.iso.minisig -p /tmp/minisign.pub
+          rm /tmp/minisign.key /tmp/minisign.pub
+
+      ### Uploading artifacts ###
+
+      - name: "Uploading artifacts: ISO image to GitHub"
+        id: upload_iso_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyos-${{ env.BUILD_VERSION }}-amd64.iso
+          path: ./vyos-${{ env.BUILD_VERSION }}-amd64.iso
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: "Uploading artifacts: ISO image's signature to GitHub"
+        id: upload_iso_minisign_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
+          path: ./vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
+          retention-days: 30
+          if-no-files-found: error
+
+      ### Release publishing ###
+
+      - name: "Release publishing: create version.json"
+        id: create_version_json
+        uses: jsdaniell/create-json@v1.2.3
+        with:
+          name: "version.json"
+          json: |
+            [
+              {
+                "url": "https://github.com/dan-os/vyos-build-lts/releases/download/${{ env.BUILD_VERSION }}/vyos-${{ env.BUILD_VERSION }}-amd64.iso",
+                "version": "${{ env.BUILD_VERSION }}",
+                "timestamp": "${{ env.TIMESTAMP }}",
+                "commit": "${{ env.LATEST_COMMIT }}"
+              }
+            ]
+
+      - name: "Release publishing: update Minisign public key"
+        id: update_minisign_public_key
+        run: |
+          echo "${{ secrets.minisign_public_key }}" > minisign.pub
+
+      - name: "Release publishing: check if the repository was modified during runtime to prevent autocommit failure"
+        id: check_if_the_repository_was_modified_during_runtime
+        run: |
+          sudo chown -R $(whoami):$(whoami) ./*
+          git pull --autostash --rebase
+
+      - name: "Release publishing: create autocommit and tag"
+        id: create_autocommit_and_tag
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          tagging_message: ${{ env.BUILD_VERSION }}
+          commit_message: ${{ env.BUILD_VERSION }}
+
+      - name: "Release publishing: publish release"
+        id: publish_release
+        if: ${{ !inputs.SKIP_RELEASE_PUBLISHING }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.BUILD_VERSION }}
+          fail_on_unmatched_files: true
+          files: |
+            ./vyos-${{ env.BUILD_VERSION }}-amd64.iso
+            ./vyos-${{ env.BUILD_VERSION }}-amd64.iso.minisig
