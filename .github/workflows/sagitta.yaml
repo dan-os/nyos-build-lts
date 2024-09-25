@@ -113,21 +113,21 @@ jobs:
           iso
 
           # move artifact one level up for minisign
-          mv build/live-image-amd64.hybrid.iso ../vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
+          mv build/live-image-amd64.hybrid.iso ../nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
 
-      - name: "Building: Sign ISO image with Minisign"
+      - name: "Building: Sign ISO image with minisign"
         shell: bash
         run: |
           echo "${{ secrets.minisign_private_key }}" > /tmp/minisign.key
-          echo ${{ secrets.minisign_password }} | $GITHUB_WORKSPACE/bin/minisign -s /tmp/minisign.key -Sm vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
+          echo ${{ secrets.minisign_password }} | $GITHUB_WORKSPACE/bin/minisign -s /tmp/minisign.key -Sm nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso
           echo "${{ secrets.minisign_public_key }}" > /tmp/minisign.pub
-          $GITHUB_WORKSPACE/bin/minisign -Vm vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso -x vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso.minisig -p /tmp/minisign.pub
+          $GITHUB_WORKSPACE/bin/minisign -Vm nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso -x nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64.iso.minisig -p /tmp/minisign.pub
           rm /tmp/minisign.key /tmp/minisign.pub
 
       - uses: actions/upload-artifact@v4
         with:
-          name: vyos-${{ steps.set_env_variables.outputs.build_version }}-amd64
-          path: vyos-${{ steps.set_env_variables.outputs.build_version }}-*
+          name: nyos-${{ steps.set_env_variables.outputs.build_version }}-amd64
+          path: nyos-${{ steps.set_env_variables.outputs.build_version }}-*
           retention-days: 30
           if-no-files-found: error
 
@@ -144,11 +144,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: vyos/vyos-build
+          ref: sagitta
           path: vyos-build
       - name: Clone vyos-1x source code
         uses: actions/checkout@v4
         with:
           repository: vyos/vyos-1x
+          ref: sagitta
           path: vyos-1x
       - id: commit_ids
         shell: bash
@@ -168,7 +170,7 @@ jobs:
           repo: "vyos-1x"
           fetchReviewers: false
           fromTag: ${{ steps.commit_ids.outputs.CHANGELOG_COMMIT_VYOS_1X }}
-          toTag: HEAD
+          toTag: sagitta
           configurationJson: |
             {
               "categories": [{"title": "", "labels": []}],
@@ -184,7 +186,7 @@ jobs:
           repo: "vyos-build"
           fetchReviewers: false
           fromTag: ${{ steps.commit_ids.outputs.CHANGELOG_COMMIT_VYOS_BUILD }}
-          toTag: HEAD
+          toTag: sagitta
           configurationJson: |
             {
               "categories": [{"title": "", "labels": []}],
@@ -209,7 +211,7 @@ jobs:
           json: |
             [
               {
-                "url": "https://github.com/dan-os/nyos-build-lts/releases/download/${{ needs.build_iso.outputs.build_version }}/vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso",
+                "url": "https://github.com/dan-os/nyos-build-lts/releases/download/${{ needs.build_iso.outputs.build_version }}/nyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso",
                 "version": "${{ needs.build_iso.outputs.build_version }}",
                 "timestamp": "${{ needs.build_iso.outputs.TIMESTAMP }}",
                 "commit": "${{ needs.build_iso.outputs.LATEST_COMMIT }}"
@@ -231,7 +233,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: vyos-${{ needs.build_iso.outputs.build_version }}-amd64
+          name: nyos-${{ needs.build_iso.outputs.build_version }}-amd64
 
       - name: "Release publishing: publish release"
         uses: softprops/action-gh-release@v2
@@ -240,5 +242,5 @@ jobs:
           tag_name: ${{ needs.build_iso.outputs.build_version }}
           fail_on_unmatched_files: true
           files: |
-            ./vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso
-            ./vyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso.minisig
+            ./nyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso
+            ./nyos-${{ needs.build_iso.outputs.build_version }}-amd64.iso.minisig
