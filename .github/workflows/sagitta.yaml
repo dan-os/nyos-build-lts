@@ -48,18 +48,23 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: "Initialization: git clone vyos-build"
-        id: git_clone_vyos-build
+      - name: "Initialization: git clone vyos-build & vyos-1x"
+        id: git_clone_vyos-build_and_vyos-1x
         run: |
           git clone -b sagitta --single-branch https://github.com/vyos/vyos-build
-          echo "LATEST_COMMIT=$(git -C ./vyos-build rev-parse --short HEAD)" >> $GITHUB_ENV
+          git clone -b sagitta --single-branch https://github.com/vyos/vyos-1x
+
+          COMMIT_VYOS_BUILD="$(git -C ./vyos-build rev-parse --short HEAD)"
+          COMMIT_VYOS_1X="$(git -C ./vyos-1x rev-parse --short HEAD)"
+
+          echo "LATEST_COMMIT=$COMMIT_VYOS_BUILD-$COMMIT_VYOS_1X" >> $GITHUB_ENV
           echo "CURRENT_COMMIT=$(cat version.json | jq -r '.[0].commit')" >> $GITHUB_ENV
 
-      - name: "Initialization: Check for updates to vyos-build"
+      - name: "Initialization: Check for updates to vyos-build & vyos-1x"
         id: check_for_updates
         run: |
           if [ "${{ env.LATEST_COMMIT }}" != "${{ env.CURRENT_COMMIT }}" ]; then
-            echo "vyos-build updated: ${{ env.CURRENT_COMMIT }} -> ${{ env.LATEST_COMMIT }}";
+            echo "vyos updated: ${{ env.CURRENT_COMMIT }} -> ${{ env.LATEST_COMMIT }}";
             echo "UPDATED=1" >> $GITHUB_OUTPUT
           else
             echo "No updates found. Exiting...";
