@@ -1,8 +1,8 @@
 [
   {
-    "url": "https://github.com/dan-os/nyos-build-lts/releases/download/1.4-lts-d31fd38-55a657e4d/nyos-1.4-lts-d31fd38-55a657e4d-amd64.iso",
-    "version": "1.4-lts-d31fd38-55a657e4d",
-    "timestamp": "2024-10-11T01:15:11Z",
-    "commit": "d31fd38-55a657e4d"
+    "url": "https://github.com/dan-os/nyos-build-lts/releases/download/1.4-lts-d31fd38-c3f688653/nyos-1.4-lts-d31fd38-c3f688653-amd64.iso",
+    "version": "1.4-lts-d31fd38-c3f688653",
+    "timestamp": "2024-10-18T01:15:46Z",
+    "commit": "d31fd38-c3f688653"
   }
 ]
