@@ -1,55 +1,121 @@
 ## vyos-1x
-- no changes
+- vrf: T6602: verify supplied VRF name on all interface types (backport #3856)
+   - PR: vyos/vyos-1x#3869
+- op_mode: T6593: Release DHCP interface does not work (backport #3861)
+   - PR: vyos/vyos-1x#3866
+- interface: T6592: remove interface from conntrack ct_iface_map on deletion (backport #3857)
+   - PR: vyos/vyos-1x#3872
+- smoketest: T6425: fix wireless smoketest CLI from invalid backport
+   - PR: vyos/vyos-1x#3880
+- vxlan: T6505: Support VXLAN VLAN-VNI range mapping in CLI (backport #3756)
+   - PR: vyos/vyos-1x#3882
+- Debian: T6598: depend on podman version >=4.9.5 (backport #3873)
+   - PR: vyos/vyos-1x#3886
+- T6605: restore configd error formatting to be consistent with CLI (backport #3868)
+   - PR: vyos/vyos-1x#3878
+- system_option: T5552: Apply IPv4 and IPv6 options after reapplying sysctls by TuneD (backport #3853)
+   - PR: vyos/vyos-1x#3862
+- smoketest: T6614: initial support for op-mode command testing (backport #3888)
+   - PR: vyos/vyos-1x#3893
+- smoketest: T5705: use locally connected remote syslog servers (backport #3889)
+   - PR: vyos/vyos-1x#3890
+- T6539: add logging options to load-balancer reverse-proxy (backport #3753)
+   - PR: vyos/vyos-1x#3913
+- system: op-mode: T3334: allow delayed getty restart when configuring serial ports (backport #3698)
+   - PR: vyos/vyos-1x#3910
+- ipsec: T6148: Fixed reset command by adding init after terminating (backport #3763)
+   - PR: vyos/vyos-1x#3909
+- T6313: Add "NAT" to "generate" command for rule resequence (backport #3715)
+   - PR: vyos/vyos-1x#3907
+- ipsec: T6148: Removed unused imports (backport #3915)
+   - PR: vyos/vyos-1x#3918
+- smoketest: T6592: remove unused "import os" (backport #3874)
+   - PR: vyos/vyos-1x#3914
+- vrf: T6603: conntrack ct_iface_map must only contain one entry for iifname/oifname (backport #3883)
+   - PR: vyos/vyos-1x#3905
+- T6617: T6618: vpn ipsec remote-access: fix profile generators (backport #3903)
+   - PR: vyos/vyos-1x#3921
+- T6486: T6379: Rewrite generate openvpn client-config (backport #3747)
+   - PR: vyos/vyos-1x#3926
+- console: T3334: remove unused directories imported from vyos.defaults (backport #3923)
+   - PR: vyos/vyos-1x#3928
+- smoketest: T6539: remove explicit test for non existing global log entry (backport #3790)
+   - PR: vyos/vyos-1x#3953
+- qos: T6638: require interface state existence in verify conditional (backport #3960)
+   - PR: vyos/vyos-1x#3962
+- T6643: firewall: fix ip address range parsing on firewall rules. (backport #3964)
+   - PR: vyos/vyos-1x#3967
+- T6619: Remove the remaining uses of per-protocol FRR configs (backport #3916)
+   - PR: vyos/vyos-1x#3957
+- T6646: conntrack: in ignore rules, if protocols=all, do not append it to the rule (backport #3981)
+   - PR: vyos/vyos-1x#3984
+- utils: T6658: fix write_file check in case of empty directory path (backport #3989)
+   - PR: vyos/vyos-1x#3994
+- T5794: firewall: change firewall priority in oder to be loaded after all interfaces (backport #3988)
+   - PR: vyos/vyos-1x#3990
+- configverify: T6642: verify_interface_exists requires config_dict arg (backport #3961)
+   - PR: vyos/vyos-1x#3973
+- op_mode: T3961: Generate PKI expect 2 character country code (backport #3997)
+   - PR: vyos/vyos-1x#3998
+- sysctl: T3204: restore sysctl settings overwritten by tuned (backport #3945)
+   - PR: vyos/vyos-1x#4010
+- xml: T6319: add util for ancestor owner/priority (backport #3428)
+   - PR: vyos/vyos-1x#4013
+- T6561: Add vrf aware for show ntp (backport #4003)
+   - PR: vyos/vyos-1x#4008
+- op_mode: T6668: Add detailed statistics infomartion about MACsec  (backport #4001)
+   - PR: vyos/vyos-1x#4006
+- T6672: Fix system option ssh-client source-interface (backport #4000)
+   - PR: vyos/vyos-1x#4004
+- T6671: defer config dependency if scheduled in priority queue (backport #4015)
+   - PR: vyos/vyos-1x#4017
+- T6681: Add option for SLAAC to support suppress Interval Advertisement in RA Packets (backport #4022)
+   - PR: vyos/vyos-1x#4025
+- container: T6702: re-add missing UNIX API socket (backport #4034)
+   - PR: vyos/vyos-1x#4039
+- OPENVPN: T6555: add server-bridge options in mode server (backport #3920)
+   - PR: vyos/vyos-1x#4037
+- T6693: wireless: Enable WiFi-6 (802.11ax) for 2.4GHz AccessPoints (backport #4028)
+   - PR: vyos/vyos-1x#4044
+- T6693: wireless: add missing country-code for 2.4GHz 802.11ax smoketest
+   - PR: vyos/vyos-1x#4062
+- T6701: Added ability to disable the container DNS plugin  (backport #4032)
+   - PR: vyos/vyos-1x#4052
+- T6555: openvpn: fix inclusion of data-ciphers for server bridge test
+   - PR: vyos/vyos-1x#4063
+- op-mode: T6626: Fix for show dhcpv6 server leases
+   - PR: vyos/vyos-1x#4065
+- policy: T6676: Invalid route-map caused bgpd to crash (backport #4047)
+   - PR: vyos/vyos-1x#4060
+- op-mode: T6682: Fix for show vpn ike sa peer that always shows all SAs (backport #4057)
+   - PR: vyos/vyos-1x#4073
+- op-mode: T6715: manually changing time/date is not synced into hardware clock (backport #4071)
+   - PR: vyos/vyos-1x#4074
+- T6674: Action add trigger workflow to rebuild package
+   - PR: vyos/vyos-1x#4083
+- lldp: T6727: add missing input validation for interface names (backport #4091)
+   - PR: vyos/vyos-1x#4092
+- dhclient: T6667: Added workaround for communication with FRR (backport #4002)
+   - PR: vyos/vyos-1x#4102
+- syslog: T6719: fix the behavior of "syslog global preserve-fqdn" (backport #4079)
+   - PR: vyos/vyos-1x#4098
+- syslog: T5367: add format option to include timezone in message (backport #4061)
+   - PR: vyos/vyos-1x#4114
+- policy: T6751: add missing completion helpers for community-list (backport #4112)
+   - PR: vyos/vyos-1x#4116
+- Jenkins: T2625: fix proper library version used by build pipeline
+   - PR: vyos/vyos-1x#4139
+- T6759: add support for italian keymap (backport #4132)
+   - PR: vyos/vyos-1x#4136
+- static: T4283: fix missing f'ormat string (backport #4131)
+   - PR: vyos/vyos-1x#4135
+- T6525: Add default dir for ext-scripts without absolute path (backport #3827)
+   - PR: vyos/vyos-1x#4145
+- smoketest: T4576: add guard timeout for systemd in log level tests (backport #4129)
+   - PR: vyos/vyos-1x#4141
+- T6781: Auto-close pull requests for sagitta
+   - PR: vyos/vyos-1x#4162
+
+
 ## vyos-build
-- build: T6446: include support URL in the version data file (backport #649)
-   - PR: vyos/vyos-build#650
-- Kernel: T5887: update Linux Kernel to v6.6.35 (backport #660)
-   - PR: vyos/vyos-build#663
-- T6508: pr workflows updated for branch and target (backport #668)
-   - PR: vyos/vyos-build#671
-- T6484: Smoketest: Increase KVM memory limit (backport #656)
-   - PR: vyos/vyos-build#659
-- Kernel: T5887: update Linux Kernel to v6.6.36 (backport #681)
-   - PR: vyos/vyos-build#682
-- snmp: T6290: add custom package build (backport #686)
-   - PR: vyos/vyos-build#687
-- container: T5867: pin specific podman version (backport #690)
-   - PR: vyos/vyos-build#692
-- Kernel: T5887: update Linux Kernel to v6.6.39 (backport #693)
-   - PR: vyos/vyos-build#697
-- ddclient: T5797: switch to Debian SALSA repository (backport #694)
-   - PR: vyos/vyos-build#696
-- T6584: Revert "T6293: add Mediatek MT7921 to defconfig" (backport #699)
-   - PR: vyos/vyos-build#701
-- Kernel: T5887: update Linux Kernel to v6.6.41 (backport #703)
-   - PR: vyos/vyos-build#708
-- hostapd: T6597: update hostapd version (backport #702)
-   - PR: vyos/vyos-build#706
-- Kernel: T5887: update Linux Kernel to v6.6.42 (backport #713)
-   - PR: vyos/vyos-build#716
-- podman: T6598: add custom podman build for version 4.9.5 (backport #709)
-   - PR: vyos/vyos-build#719
-- podman: T6598: add search PATH for Go (backport #711)
-   - PR: vyos/vyos-build#721
-- Kernel: T5887: update Linux Kernel to v6.6.43 (backport #722)
-   - PR: vyos/vyos-build#725
-- minisign: T6610: update the rolling release signing key
-   - PR: vyos/vyos-build#717
-- ddclient: T5792: Use Debian build from Trixie (backport #723)
-   - PR: vyos/vyos-build#727
-- podman: T6598: add fuse-overlayfs runtime dependency (backport #729)
-   - PR: vyos/vyos-build#731
-- Kernel: T5887: update Linux Kernel to v6.6.45 (backport #733)
-   - PR: vyos/vyos-build#735
-- Kernel: T5887: update Linux Kernel to v6.6.47 (backport #739)
-   - PR: vyos/vyos-build#740
-- build: T6666: singular image_format in flavor files (backport #738)
-   - PR: vyos/vyos-build#742
-- build: T6653: add build/manifest.json file (backport #736)
-   - PR: vyos/vyos-build#746
-- Kernel: T5887: update Linux Kernel to v6.6.49 (backport #748)
-   - PR: vyos/vyos-build#749
-- Kernel: T5887: update Linux Kernel to v6.6.54 (backport #790)
-   - PR: vyos/vyos-build#793
-
-
+- no changes
